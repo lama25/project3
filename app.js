@@ -1,6 +1,13 @@
 var port = process.env.PORT || 3000,
     http = require('http'),
-    fs = require('fs');
+    fs = require('fs'),
+    AWS = require('aws-sdk');
+
+AWS.config.update({region: 'us-east-2'});
+
+// Create the DynamoDB service object
+var ddb = new AWS.DynamoDB({apiVersion: '2012-08-10'});
+
 
 var app = http.createServer(function (req, res) {
   if (req.url.indexOf('/img') != -1) {
@@ -46,13 +53,46 @@ var app = http.createServer(function (req, res) {
     fs.readFile(__dirname + '/public/index.html', function (err, data) {
       if (err) {
         res.writeHead(404, {'Content-Type': 'text/plain'});
-        res.write('Error 404: Resource not found.');
+        res.end('Error 404: Resource not found.');
         console.log(err);
       } else {
-        res.writeHead(200, {'Content-Type': 'text/html'});
-        res.write(data);
+        
+        // Set the region 
+     
+        const params2 = {
+          // Specify which items in the results are returned.
+          FilterExpression: "Id > :s AND Id < :e",
+          // Define the expression attribute value, which are substitutes for the values you want to compare.
+          ExpressionAttributeValues: {
+            ":s": {N: '0'},
+            ":e": {N: '100'}
+          },
+          // Set the projection expression, which are the attributes that you want.
+          ProjectionExpression: "Id",
+          TableName: "ProductCatalog",
+        };
+        
+        ddb.scan(params2, function (err, data2) {
+          if (err) {
+            res.writeHead(200, {'Content-Type': 'text/html'});
+            res.end(data);          
+          } else {
+            var ids = "";
+            data2.Items.forEach(function (element, index, array) {
+              ids += " " + element.Id['N'];
+              console.log(
+                  "printing",
+                  element.Id
+              );
+            });
+
+            
+            res.writeHead(200, {'Content-Type': 'text/html'});
+            res.end(data + ids);
+          }
+        });
+        
       }
-      res.end();
     });
   }
 }).listen(port, '0.0.0.0');
